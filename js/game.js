@@ -2,12 +2,13 @@
 // (fale, kolizje, punktacja, bonusy).
 import {
   WIDTH, HEIGHT, GROUND_Y, WAVE_BANNER_TIME, FORMATION, BOSS, VULTURE, POWERUPS,
-  ENEMY_TYPES, DIFFICULTY_ORDER, DEFAULT_DIFFICULTY, getDifficulty,
+  ENEMY_TYPES, DIFFICULTY_ORDER, DEFAULT_DIFFICULTY, getDifficulty, VISUALS,
 } from './config.js';
 import { aabb, circleRect } from './collision.js';
 import { scorePoints, enemyPoints, bossReward } from './scoring.js';
 import { updateHighscore } from './storage.js';
 import { Effects } from './effects.js';
+import { Ambient } from './ambient.js';
 import { Player } from './entities/player.js';
 import { Formation, isBossWave } from './entities/enemies.js';
 import { Boss } from './entities/boss.js';
@@ -17,6 +18,7 @@ import { createShields } from './entities/shields.js';
 import { PowerUp, POWERUP_INFO, rollPowerup } from './entities/powerups.js';
 import {
   drawBackground, drawHUD, drawBossBar, drawBanner, drawMenu, drawPause, drawGameOver, drawMuteIndicator,
+  drawVignette, drawFlash,
 } from './render.js';
 
 export const STATE = { MENU: 'menu', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover' };
@@ -31,9 +33,14 @@ export class Game {
     this.highscores = storage.loadHighscores();
     this.audio.setMuted(storage.loadMuted());
     this.effects = new Effects();
+    this.ambient = new Ambient();
     this.time = 0;
     this.score = 0;
     this.newRecord = false;
+    this.shakeTime = 0;    // pozostały czas wstrząsu ekranu
+    this.shakePower = 0;
+    this.flashTime = 0;    // pozostały czas błysku ekranu
+    this.flashColor = '#fff';
   }
 
   get difficultyKey() {
@@ -73,6 +80,8 @@ export class Game {
     this.explosions = [];
     this.powerups = [];
     this.effects.clear();
+    this.shakeTime = 0;
+    this.flashTime = 0;
     this.formation = null;
     this.boss = null;
     this.vulture = null;
@@ -117,6 +126,13 @@ export class Game {
     this.time += dt;
     const input = this.input;
 
+    // Tło i efekty ekranu zamierają razem z grą w pauzie
+    if (this.state !== STATE.PAUSED) {
+      this.ambient.update(dt);
+      this.shakeTime = Math.max(0, this.shakeTime - dt);
+      this.flashTime = Math.max(0, this.flashTime - dt);
+    }
+
     if (input.wasPressed('KeyM')) {
       this.storage.saveMuted(this.audio.toggleMute());
     }
@@ -157,6 +173,7 @@ export class Game {
       const bullet = p.tryShoot(this.playerBullets.length);
       if (bullet) {
         this.playerBullets.push(bullet);
+        this.effects.muzzle(bullet.x + bullet.w / 2, bullet.y + bullet.h);
         this.audio.play('shoot');
       }
     }
@@ -232,6 +249,7 @@ export class Game {
     this.explosions.push(new Explosion(x, y, r));
     for (const s of this.shields) s.destroyRadius(x, y, r);
     this.audio.play('explosion');
+    this.shakeScreen(VISUALS.shakeExplosion);
     if (circleRect(x, y, r, this.player.hitbox)) this.hitPlayer();
   }
 
@@ -326,6 +344,8 @@ export class Game {
     }
     this.effects.burst(cx, cy, '#c0392b', 30, 220);
     this.audio.play('explosion');
+    this.shakeScreen(VISUALS.shakeBoss);
+    this.flashScreen('#fff3d6');
     // Boss zawsze zostawia „Złotą podkowę”; osłony zostają odnowione
     this.powerups.push(new PowerUp('super', cx, cy));
     this.shields = createShields();
@@ -350,14 +370,31 @@ export class Game {
     if (result === 'absorbed') {
       this.audio.play('absorb');
       this.effects.popup('GWIAZDA!', p.x + p.w / 2, p.y - 10, { size: 16, color: '#ffd700' });
+      this.flashScreen('#ffd700');
     } else if (result === 'lost') {
       this.audio.play('lifeLost');
       this.effects.burst(p.x + p.w / 2, p.y + p.h / 2, '#e0ac69', 16);
+      this.shakeScreen(VISUALS.shakeHit);
+      this.flashScreen('#b3261e');
     } else if (result === 'dead') {
       this.audio.play('lifeLost');
       this.effects.burst(p.x + p.w / 2, p.y + p.h / 2, '#e0ac69', 24);
+      this.shakeScreen(VISUALS.shakeHit);
+      this.flashScreen('#b3261e');
       this.endGame();
     }
+  }
+
+  // Silniejszy wstrząs wygrywa ze słabszym, który jeszcze trwa
+  shakeScreen(power) {
+    const current = this.shakeTime > 0 ? this.shakePower : 0;
+    this.shakePower = Math.max(power, current);
+    this.shakeTime = VISUALS.shakeDecay;
+  }
+
+  flashScreen(color) {
+    this.flashColor = color;
+    this.flashTime = VISUALS.flashTime;
   }
 
   collectPowerup(type) {
@@ -370,6 +407,7 @@ export class Game {
         this.effects.popup(`+${points}`, cx, p.y - 30, { color: '#ffd700' });
       }
       this.effects.popup('SUPER BONUS!', WIDTH / 2, HEIGHT / 2 - 40, { size: 44, color: '#ffd700', duration: 1.8, rise: 30 });
+      this.flashScreen('#ffd700');
       this.audio.play('super');
       return;
     }
@@ -384,11 +422,23 @@ export class Game {
     drawBackground(ctx);
 
     if (this.state === STATE.MENU) {
+      this.ambient.draw(ctx);
+      drawVignette(ctx);
       drawMenu(ctx, this);
       drawMuteIndicator(ctx, this.audio.muted);
       return;
     }
 
+    // Wstrząs przesuwa cały świat gry (HUD i ekrany zostają w miejscu).
+    // Nieprzesunięte tło pod spodem zakrywa szczeliny przy krawędziach.
+    ctx.save();
+    if (this.shakeTime > 0 && this.state !== STATE.PAUSED) {
+      const k = this.shakeTime / VISUALS.shakeDecay;
+      const power = this.shakePower * k * k;
+      ctx.translate(Math.round((Math.random() * 2 - 1) * power), Math.round((Math.random() * 2 - 1) * power));
+      drawBackground(ctx);
+    }
+    this.ambient.draw(ctx);
     for (const s of this.shields) s.draw(ctx);
     for (const u of this.powerups) u.draw(ctx);
     if (this.formation) this.formation.draw(ctx);
@@ -400,7 +450,10 @@ export class Game {
     if (this.state !== STATE.GAMEOVER || this.player.lives > 0) this.player.draw(ctx);
     for (const e of this.explosions) e.draw(ctx);
     this.effects.draw(ctx);
+    ctx.restore();
 
+    drawVignette(ctx);
+    drawFlash(ctx, this.flashColor, this.flashTime / VISUALS.flashTime);
     drawHUD(ctx, this);
     if (this.boss && !this.boss.entering) drawBossBar(ctx, this.boss);
     if (this.bannerTimer > 0) drawBanner(ctx, this);

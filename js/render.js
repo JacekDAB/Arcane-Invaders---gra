@@ -1,7 +1,7 @@
 // Rysowanie tła (pustynia o zachodzie słońca), HUD i ekranów menu / pauzy / game over.
 import {
   WIDTH, HEIGHT, HORIZON_Y, HUD_HEIGHT, WAVE_BANNER_TIME,
-  FONT_TITLE, FONT_TEXT, DIFFICULTY_ORDER, DIFFICULTIES, ENEMY_TYPES, POWERUPS,
+  FONT_TITLE, FONT_TEXT, DIFFICULTY_ORDER, DIFFICULTIES, ENEMY_TYPES, POWERUPS, VISUALS,
 } from './config.js';
 import { drawSprite, drawHat } from './sprites.js';
 import { drawPowerupIcon } from './entities/powerups.js';
@@ -41,16 +41,15 @@ function buildBackground() {
   g.fillStyle = 'rgba(255, 240, 220, 0.7)';
   for (let i = 0; i < 40; i++) g.fillRect(Math.floor(rand() * WIDTH), 45 + Math.floor(rand() * 120), 1, 1);
 
-  // Słońce z poświatą
-  const glow = g.createRadialGradient(400, 400, 30, 400, 400, 220);
-  glow.addColorStop(0, 'rgba(255, 220, 130, 0.55)');
-  glow.addColorStop(1, 'rgba(255, 220, 130, 0)');
+  // Słońce z poświatą — zachodzi za dalekimi górami
+  const { sunX, sunY, sunRadius } = VISUALS;
+  const glow = g.createRadialGradient(sunX, sunY, sunRadius * 0.6, sunX, sunY, sunRadius * 4.2);
+  glow.addColorStop(0, 'rgba(255, 214, 120, 0.7)');
+  glow.addColorStop(0.4, 'rgba(255, 160, 80, 0.25)');
+  glow.addColorStop(1, 'rgba(255, 160, 80, 0)');
   g.fillStyle = glow;
-  g.fillRect(0, 150, WIDTH, HORIZON_Y - 150);
-  g.fillStyle = '#ffd98a';
-  g.beginPath();
-  g.arc(400, 405, 64, 0, Math.PI * 2);
-  g.fill();
+  g.fillRect(0, 0, WIDTH, HORIZON_Y);
+  g.drawImage(buildSun(sunRadius), sunX - sunRadius, sunY - sunRadius);
 
   // Dalekie góry
   polygon(g, '#8a3a3f', [
@@ -96,6 +95,60 @@ function buildBackground() {
     g.fill();
   }
   return c;
+}
+
+// Tarcza słońca: gradient od żółtego do pomarańczowego, dolna część pocięta
+// poziomymi paskami (coraz szerszymi ku dołowi) — klasyczny „retro” zachód
+function buildSun(r) {
+  const c = document.createElement('canvas');
+  c.width = r * 2;
+  c.height = r * 2;
+  const g = c.getContext('2d');
+  const fill = g.createLinearGradient(0, 0, 0, r * 2);
+  fill.addColorStop(0, '#fff1b0');
+  fill.addColorStop(0.5, '#ffc861');
+  fill.addColorStop(1, '#ff7a3d');
+  g.fillStyle = fill;
+  g.beginPath();
+  g.arc(r, r, r, 0, Math.PI * 2);
+  g.fill();
+
+  g.globalCompositeOperation = 'destination-out';
+  // Paski zaczynają się nad linią gór, żeby było je widać
+  for (let i = 0, y = r * 0.45; y < r * 2; i++) {
+    const gap = 1.5 + i;
+    g.fillRect(0, y, r * 2, gap);
+    y += gap + Math.max(3, 8 - i);
+  }
+  return c;
+}
+
+// Przyciemnione rogi ekranu — skupiają wzrok na środku planszy
+let vignette = null;
+
+export function drawVignette(ctx) {
+  if (!vignette) {
+    vignette = document.createElement('canvas');
+    vignette.width = WIDTH;
+    vignette.height = HEIGHT;
+    const g = vignette.getContext('2d');
+    const grad = g.createRadialGradient(WIDTH / 2, HEIGHT / 2, HEIGHT * 0.45, WIDTH / 2, HEIGHT / 2, HEIGHT * 0.85);
+    grad.addColorStop(0, 'rgba(20, 8, 4, 0)');
+    grad.addColorStop(1, 'rgba(20, 8, 4, 0.55)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, WIDTH, HEIGHT);
+  }
+  ctx.drawImage(vignette, 0, 0);
+}
+
+// Błysk całego ekranu (np. czerwony po trafieniu); k: 1 → 0
+export function drawFlash(ctx, color, k) {
+  if (k <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = 0.35 * k;
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
 }
 
 function polygon(g, color, points) {
