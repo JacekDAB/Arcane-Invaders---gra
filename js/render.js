@@ -1,0 +1,329 @@
+// Rysowanie tła (pustynia o zachodzie słońca), HUD i ekranów menu / pauzy / game over.
+import {
+  WIDTH, HEIGHT, HORIZON_Y, HUD_HEIGHT, WAVE_BANNER_TIME,
+  FONT_TITLE, FONT_TEXT, DIFFICULTY_ORDER, DIFFICULTIES, ENEMY_TYPES, POWERUPS,
+} from './config.js';
+import { drawSprite, drawHat } from './sprites.js';
+import { drawPowerupIcon } from './entities/powerups.js';
+
+const INK = '#3b2314';
+const CREAM = '#ffe2a8';
+const GOLD = '#ffd700';
+
+// --- Tło ---------------------------------------------------------------------
+
+let background = null;
+
+export function drawBackground(ctx) {
+  if (!background) background = buildBackground();
+  ctx.drawImage(background, 0, 0);
+}
+
+// Tło jest statyczne — malujemy je raz do osobnego canvasu
+function buildBackground() {
+  const c = document.createElement('canvas');
+  c.width = WIDTH;
+  c.height = HEIGHT;
+  const g = c.getContext('2d');
+
+  const sky = g.createLinearGradient(0, 0, 0, HORIZON_Y);
+  sky.addColorStop(0, '#2a1740');
+  sky.addColorStop(0.35, '#6b2a4a');
+  sky.addColorStop(0.65, '#c4492e');
+  sky.addColorStop(0.88, '#f08a3c');
+  sky.addColorStop(1, '#f9c66b');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, WIDTH, HORIZON_Y);
+
+  // Pierwsze gwiazdy (stałe ziarno — to samo tło przy każdym uruchomieniu)
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  g.fillStyle = 'rgba(255, 240, 220, 0.7)';
+  for (let i = 0; i < 40; i++) g.fillRect(Math.floor(rand() * WIDTH), 45 + Math.floor(rand() * 120), 1, 1);
+
+  // Słońce z poświatą
+  const glow = g.createRadialGradient(400, 400, 30, 400, 400, 220);
+  glow.addColorStop(0, 'rgba(255, 220, 130, 0.55)');
+  glow.addColorStop(1, 'rgba(255, 220, 130, 0)');
+  g.fillStyle = glow;
+  g.fillRect(0, 150, WIDTH, HORIZON_Y - 150);
+  g.fillStyle = '#ffd98a';
+  g.beginPath();
+  g.arc(400, 405, 64, 0, Math.PI * 2);
+  g.fill();
+
+  // Dalekie góry
+  polygon(g, '#8a3a3f', [
+    [0, HORIZON_Y], [0, 350], [60, 332], [120, 360], [190, 305], [260, 348], [330, 322], [390, 352],
+    [450, 318], [520, 350], [590, 300], [660, 342], [730, 318], [800, 345], [800, HORIZON_Y],
+  ]);
+  // Bliższe mesy (płaskie szczyty)
+  polygon(g, '#5a2533', [
+    [0, HORIZON_Y], [0, 382], [40, 382], [52, 368], [150, 368], [162, 392], [240, 398], [300, 398],
+    [312, 384], [360, 384], [372, 404], [470, 404], [492, 372], [505, 362], [615, 362], [630, 380],
+    [700, 392], [760, 388], [800, 380], [800, HORIZON_Y],
+  ]);
+
+  // Piaszczysta ziemia
+  const ground = g.createLinearGradient(0, HORIZON_Y, 0, HEIGHT);
+  ground.addColorStop(0, '#d39a5a');
+  ground.addColorStop(1, '#9e5f2e');
+  g.fillStyle = ground;
+  g.fillRect(0, HORIZON_Y, WIDTH, HEIGHT - HORIZON_Y);
+
+  // Wydmy
+  g.strokeStyle = 'rgba(110, 55, 20, 0.25)';
+  g.lineWidth = 2;
+  for (const [y, amp] of [[440, 6], [478, 9], [520, 7], [566, 10]]) {
+    g.beginPath();
+    g.moveTo(0, y);
+    for (let x = 0; x <= WIDTH; x += 100) g.quadraticCurveTo(x + 50, y - amp, x + 100, y);
+    g.stroke();
+  }
+
+  // Kaktusy — ciemne sylwetki, żeby nie myliły się z obiektami gry
+  cactus(g, 60, 428, 0.9);
+  cactus(g, 745, 432, 1.1);
+  cactus(g, 250, 412, 0.4);
+  cactus(g, 560, 410, 0.35);
+  cactus(g, 690, 414, 0.45);
+
+  // Kamienie
+  g.fillStyle = 'rgba(80, 40, 20, 0.45)';
+  for (const [x, y, w] of [[140, 505, 10], [330, 575, 14], [610, 520, 8], [480, 590, 12], [40, 560, 9]]) {
+    g.beginPath();
+    g.ellipse(x, y, w, w * 0.45, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  return c;
+}
+
+function polygon(g, color, points) {
+  g.fillStyle = color;
+  g.beginPath();
+  points.forEach(([x, y]) => g.lineTo(x, y));
+  g.closePath();
+  g.fill();
+}
+
+// Saguaro: pień + dwa ramiona
+function cactus(g, x, baseY, s) {
+  g.fillStyle = '#2e3a1f';
+  const pill = (px, py, w, h) => {
+    const r = w / 2;
+    g.beginPath();
+    g.arc(px + r, py + r, r, Math.PI, 0);
+    g.lineTo(px + w, py + h);
+    g.lineTo(px, py + h);
+    g.closePath();
+    g.fill();
+  };
+  pill(x - 7 * s, baseY - 80 * s, 14 * s, 80 * s);
+  pill(x - 24 * s, baseY - 62 * s, 9 * s, 28 * s);
+  g.fillRect(x - 24 * s, baseY - 38 * s, 20 * s, 8 * s);
+  pill(x + 15 * s, baseY - 70 * s, 9 * s, 26 * s);
+  g.fillRect(x + 4 * s, baseY - 48 * s, 20 * s, 8 * s);
+}
+
+// --- Pomocnicze ------------------------------------------------------------
+
+function text(ctx, str, x, y, { font = FONT_TITLE, size = 20, color = CREAM, align = 'center', shadow = true } = {}) {
+  ctx.font = `${size}px ${font}`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  if (shadow) {
+    ctx.fillStyle = 'rgba(30, 12, 4, 0.8)';
+    ctx.fillText(str, x + 2, y + 2);
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(str, x, y);
+}
+
+function blink(time, rate = 2) {
+  return Math.floor(time * rate * 2) % 2 === 0;
+}
+
+// List gończy na starym papierze
+function poster(ctx, x, y, w, h) {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.fillRect(x + 6, y + 6, w, h);
+  const paper = ctx.createRadialGradient(x + w / 2, y + h / 2, 40, x + w / 2, y + h / 2, h * 0.75);
+  paper.addColorStop(0, '#f1e1b5');
+  paper.addColorStop(1, '#c9a86a');
+  ctx.fillStyle = paper;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x + 10, y + 10, w - 20, h - 20);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 15, y + 15, w - 30, h - 30);
+  // gwóźdź
+  ctx.fillStyle = '#4a4a4a';
+  ctx.beginPath();
+  ctx.arc(x + w / 2, y + 6, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// --- HUD -------------------------------------------------------------------
+
+export function drawHUD(ctx, game) {
+  ctx.fillStyle = 'rgba(30, 15, 8, 0.78)';
+  ctx.fillRect(0, 0, WIDTH, HUD_HEIGHT);
+  ctx.fillStyle = '#d4a017';
+  ctx.fillRect(0, HUD_HEIGHT - 2, WIDTH, 2);
+
+  const y = HUD_HEIGHT / 2;
+  text(ctx, `WYNIK ${game.score}`, 14, y, { size: 16, align: 'left' });
+  text(ctx, `REKORD ${game.record}`, 170, y, { size: 16, align: 'left', color: '#f4c27a' });
+  text(ctx, `FALA ${game.wave}`, 345, y, { size: 16, align: 'left' });
+
+  // Aktywne bonusy z paskiem pozostałego czasu
+  const p = game.player;
+  let bx = 440;
+  for (const type of ['double', 'fast']) {
+    const left = p.bonuses[type];
+    if (left <= 0) continue;
+    drawPowerupIcon(ctx, type, bx + 8, y, 16);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fillRect(bx + 20, y - 3, 38, 6);
+    ctx.fillStyle = type === 'double' ? '#e67e22' : '#5dade2';
+    ctx.fillRect(bx + 20, y - 3, 38 * (left / POWERUPS.timedDuration), 6);
+    bx += 66;
+  }
+  if (p.star) drawPowerupIcon(ctx, 'star', bx + 8, y, 16);
+
+  // Życia jako kapelusze (od prawej)
+  for (let i = 0; i < p.lives; i++) {
+    const golden = i >= 5; // szóste życie z „Złotej podkowy”
+    drawHat(ctx, WIDTH - 34 - i * 23, y - 6, golden ? GOLD : '#b07a42', golden ? '#8b5a2b' : '#d4a017');
+  }
+}
+
+export function drawBossBar(ctx, boss) {
+  const w = 320;
+  const x = (WIDTH - w) / 2;
+  const y = HUD_HEIGHT + 5;
+  ctx.fillStyle = 'rgba(30, 10, 5, 0.8)';
+  ctx.fillRect(x - 2, y - 2, w + 4, 14);
+  ctx.fillStyle = '#9b1c1c';
+  ctx.fillRect(x, y, w * (boss.hp / boss.maxHp), 10);
+  text(ctx, 'EL DIABLO', WIDTH / 2, y + 5, { size: 10, font: FONT_TEXT, color: '#fff', shadow: false });
+}
+
+export function drawBanner(ctx, game) {
+  const k = game.bannerTimer / WAVE_BANNER_TIME;   // 1 → 0
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, k * 4, (1 - k) * 6 + 0.2);
+  text(ctx, `FALA ${game.wave}`, WIDTH / 2, 250, { size: 56 });
+  if (game.isBossWave) {
+    text(ctx, 'EL DIABLO NADJEŻDŻA!', WIDTH / 2, 305, { size: 26, color: '#ff6b4a' });
+  }
+  ctx.restore();
+}
+
+export function drawMuteIndicator(ctx, muted) {
+  if (!muted) return;
+  text(ctx, 'DŹWIĘK WYŁ. (M)', WIDTH - 10, HEIGHT - 12, { size: 12, font: FONT_TEXT, align: 'right', color: CREAM });
+}
+
+// --- Ekrany ----------------------------------------------------------------
+
+export function drawMenu(ctx, game) {
+  ctx.fillStyle = 'rgba(20, 8, 4, 0.35)';
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // List gończy z tytułem
+  const px = 60;
+  const py = 50;
+  const pw = 330;
+  const cx = px + pw / 2;
+  poster(ctx, px, py, pw, 480);
+  text(ctx, 'WANTED', cx, py + 70, { size: 62, color: INK, shadow: false });
+  ctx.fillStyle = 'rgba(59, 35, 20, 0.15)';
+  ctx.fillRect(cx - 60, py + 110, 120, 96);
+  drawSprite(ctx, 'herszt', Math.floor(game.time * 2) % 2, cx - 44, py + 122, 8);
+  text(ctx, 'ARCANE', cx, py + 250, { size: 40, color: '#7a1f12', shadow: false });
+  text(ctx, 'INVADERS', cx, py + 294, { size: 40, color: '#7a1f12', shadow: false });
+  text(ctx, 'ŻYWI LUB MARTWI', cx, py + 332, { size: 16, font: FONT_TEXT, color: INK, shadow: false });
+  text(ctx, 'NAGRODA', cx, py + 378, { size: 20, color: INK, shadow: false });
+  text(ctx, `$ ${game.highscores[game.difficultyKey]}`, cx, py + 418, { size: 34, color: INK, shadow: false });
+  text(ctx, `rekord — poziom ${game.difficulty.label.toLowerCase()}`, cx, py + 450, { size: 13, font: FONT_TEXT, color: INK, shadow: false });
+
+  // Prawy panel: poziom trudności i sterowanie
+  const rx = 600;
+  text(ctx, 'POZIOM TRUDNOŚCI', rx, 110, { size: 24 });
+  DIFFICULTY_ORDER.forEach((key, i) => {
+    const y = 165 + i * 46;
+    const selected = i === game.difficultyIndex;
+    if (selected) {
+      ctx.fillStyle = '#7a4a22';
+      ctx.fillRect(rx - 110, y - 18, 220, 36);
+      ctx.strokeStyle = '#3b2314';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rx - 110, y - 18, 220, 36);
+      text(ctx, '►', rx - 92, y, { size: 16, color: GOLD, shadow: false });
+      text(ctx, '◄', rx + 92, y, { size: 16, color: GOLD, shadow: false });
+    }
+    text(ctx, DIFFICULTIES[key].label.toUpperCase(), rx, y, { size: 22, color: selected ? '#fff3d6' : 'rgba(255, 226, 168, 0.55)' });
+  });
+  const d = game.difficulty;
+  text(ctx, `życia: ${d.lives}  ·  punkty ×${d.scoreMultiplier.toFixed(1)}`, rx, 310, { size: 15, font: FONT_TEXT });
+
+  if (blink(game.time, 1)) text(ctx, 'ENTER — START', rx, 355, { size: 28, color: GOLD });
+
+  const controls = [
+    '← → / A D — ruch',
+    'SPACJA — strzał',
+    'P / ESC — pauza',
+    'M — dźwięk',
+    '↑ ↓ — poziom trudności',
+  ];
+  controls.forEach((line, i) => text(ctx, line, rx, 402 + i * 22, { size: 15, font: FONT_TEXT }));
+
+  // Cennik bandytów
+  ['herszt', 'rewolwerowiec', 'opryszek'].forEach((type, i) => {
+    const x = 470 + i * 100;
+    drawSprite(ctx, type, 0, x, 526, 2);
+    text(ctx, `= ${ENEMY_TYPES[type].points}`, x + 44, 535, { size: 15, font: FONT_TEXT });
+  });
+}
+
+export function drawPause(ctx) {
+  ctx.fillStyle = 'rgba(10, 5, 2, 0.55)';
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  text(ctx, 'PAUZA', WIDTH / 2, 260, { size: 72 });
+  text(ctx, 'P / ESC — wznów     ENTER — menu', WIDTH / 2, 330, { size: 18, font: FONT_TEXT });
+}
+
+export function drawGameOver(ctx, game) {
+  ctx.fillStyle = 'rgba(15, 5, 0, 0.6)';
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  const pw = 360;
+  const ph = 400;
+  const px = (WIDTH - pw) / 2;
+  const py = 70;
+  const cx = WIDTH / 2;
+  poster(ctx, px, py, pw, ph);
+  text(ctx, 'WANTED', cx, py + 70, { size: 58, color: INK, shadow: false });
+
+  // Czerwona pieczątka „DEAD”
+  ctx.save();
+  ctx.translate(cx, py + 170);
+  ctx.rotate(-0.12);
+  ctx.strokeStyle = '#9b1c1c';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(-130, -48, 260, 96);
+  text(ctx, 'DEAD', 0, 4, { size: 84, color: '#9b1c1c', shadow: false });
+  ctx.restore();
+
+  text(ctx, 'WYNIK', cx, py + 270, { size: 22, color: INK, shadow: false });
+  text(ctx, `$ ${game.score}`, cx, py + 312, { size: 38, color: INK, shadow: false });
+  if (game.newRecord && blink(game.time, 2)) {
+    text(ctx, 'NOWY REKORD!', cx, py + 360, { size: 26, color: '#b3261e', shadow: false });
+  } else if (!game.newRecord) {
+    text(ctx, `rekord: ${game.record}`, cx, py + 360, { size: 16, font: FONT_TEXT, color: INK, shadow: false });
+  }
+
+  text(ctx, 'ENTER — MENU        R — RESTART', cx, 530, { size: 22 });
+}

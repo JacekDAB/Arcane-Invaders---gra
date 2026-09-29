@@ -1,0 +1,11 @@
+{
+  "name": "arcane-invaders",
+  "version": "1.0.0",
+  "description": "Arcane Invaders — westernowa gra w stylu Space Invaders (projekt szkoleniowy)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node --test"
+  }
+}

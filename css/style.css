@@ -1,0 +1,23 @@
+/* Wyśrodkowany canvas 800×600 skalowany do okna z zachowaniem proporcji 4:3 */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #1a0d08;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Rye', Georgia, serif;
+}
+
+#game {
+  display: block;
+  width: min(100vw, calc(100vh * 4 / 3));
+  height: min(100vh, calc(100vw * 3 / 4));
+  image-rendering: pixelated;
+  box-shadow: 0 0 40px rgba(240, 138, 60, 0.25);
+}
