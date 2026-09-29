@@ -114,6 +114,25 @@ export const POWERUPS = {
   superOverflowPoints: 1000,
 };
 
+// Efekty wizualne: animowane tło, wstrząsy ekranu i błyski
+export const VISUALS = {
+  sunX: 400,
+  sunY: 335,             // słońce zachodzi za dalekimi górami
+  sunRadius: 58,
+  cloudCount: 5,
+  cloudMinSpeed: 6,      // px/s
+  cloudMaxSpeed: 16,
+  starTwinkleCount: 14,  // gwiazdy migoczące (reszta jest statyczna)
+  tumbleweedMinDelay: 6, // s między przetoczeniami krzaka
+  tumbleweedMaxDelay: 14,
+  tumbleweedSpeed: 120,
+  shakeHit: 7,           // siła wstrząsu po utracie życia (px)
+  shakeExplosion: 5,     // siła wstrząsu po wybuchu dynamitu
+  shakeBoss: 10,         // siła wstrząsu po pokonaniu bossa
+  shakeDecay: 0.35,      // czas wygasania wstrząsu (s)
+  flashTime: 0.35,       // czas błysku ekranu (s)
+};
+
 export const DIFFICULTIES = {
   latwy:    { key: 'latwy',    label: 'Łatwy',    enemySpeed: 0.7, enemyFire: 0.5, lives: 5, powerupChance: 0.15, scoreMultiplier: 0.5 },
   normalny: { key: 'normalny', label: 'Normalny', enemySpeed: 1.0, enemyFire: 1.0, lives: 3, powerupChance: 0.10, scoreMultiplier: 1.0 },
