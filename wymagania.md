@@ -81,7 +81,7 @@ js/
 
 - Ruch w poziomie w granicach ekranu.
 - Domyślnie **1 pocisk gracza naraz** na ekranie (klasyka); bonusy to zmieniają.
-- Życia na start zależne od poziomu trudności (Normalny: 3), maksymalnie 5.
+- Życia na start zależne od poziomu trudności (Normalny: 3), maksymalnie 5 (6 dzięki super bonusowi, zob. 4.8).
 - Po trafieniu: utrata życia i **2 s nietykalności** (sprite miga).
 - Utrata ostatniego życia → game over.
 
@@ -140,6 +140,16 @@ js/
 | Gwiazda szeryfa | tarcza pochłaniająca 1 trafienie | do trafienia |
 | Dodatkowe życie | +1 życie (maks. 5), rzadki | — |
 
+#### Super bonus „Złota podkowa”
+
+- Wypada **zawsze z pokonanego bossa** oraz z szansą **2%** z zestrzelonego sępa.
+- Spada wolniej niż zwykłe bonusy i świeci złotem, żeby łatwo go było zauważyć.
+- Efekt po zebraniu:
+  - **+1 życie**, które może przekroczyć zwykły limit — maksymalnie **6 żyć**,
+  - **3 s nietykalności** (sprite świeci złotem).
+- Gdy szeryf ma już 6 żyć, zamiast życia dostaje **1000 pkt** (z mnożnikiem trudności).
+- Zebranie ma osobny, wyraźny efekt dźwiękowy i napis „SUPER BONUS!” na ekranie.
+
 ### 4.9 Poziomy trudności
 
 Wybierane w menu; realizowane jako mnożniki w `config.js`.
@@ -169,7 +179,7 @@ Wartości są punktem startowym do strojenia.
 
 ## 6. Dźwięk
 
-- Efekty generowane w Web Audio: strzał, trafienie, wybuch, zebranie bonusu, utrata życia, pojawienie się bossa, game over.
+- Efekty generowane w Web Audio: strzał, trafienie, wybuch, zebranie bonusu, zebranie super bonusu, utrata życia, pojawienie się bossa, game over.
 - AudioContext tworzony przy pierwszej interakcji z klawiaturą (wymóg przeglądarek).
 - Klawisz M wycisza dźwięk; ustawienie zapamiętywane w localStorage.
 
