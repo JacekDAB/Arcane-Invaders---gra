@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Losowe kolory</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      font-family: system-ui, sans-serif;
+      background: #f4f4f4;
+    }
+    button {
+      padding: 16px 32px;
+      font-size: 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <button id="btn1">Przycisk 1</button>
+  <button id="btn2">Przycisk 2</button>
+
+  <script>
+    function randomColor() {
+      return '#' + Math.floor(Math.random() * 0x1000000).toString(16).padStart(6, '0');
+    }
+
+    document.querySelectorAll('button').forEach(function (btn) {
+      btn.style.backgroundColor = randomColor();
+      btn.addEventListener('click', function () {
+        btn.style.backgroundColor = randomColor();
+      });
+    });
+  </script>
+</body>
+</html>
